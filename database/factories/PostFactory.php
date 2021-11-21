@@ -15,6 +15,7 @@ class PostFactory extends Factory
   {
         $created_at = now()->subDays(rand(1, 20));
         $title = $this->faker->text(60);
+
         return [
             "user_id" => User::all()->random(1)->first()->id,
             "category_id" => Category::all()->random(1)->first()->id,
