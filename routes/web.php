@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -204,8 +205,7 @@ Route::get("/update-or-create/{slug}", function (string $slug) {
 /**
  * Eliminar un Post y sus Tags relaconados si existe
  */
-Route::get("/delete-with-tags/{id}", function (int $id) 
-{
+Route::get("/delete-with-tags/{id}", function (int $id) {
   try {
     DB::beginTransaction();
 
@@ -216,6 +216,86 @@ Route::get("/delete-with-tags/{id}", function (int $id)
     DB::commit();
 
     return $post;
+  } catch (Exception $exception) {
+    DB::rollBack();
+    return $exception->getMessage();
+  }
+});
+
+/**
+ * Buscar un Post o retorna un 404, pero si existe darle Like
+ */
+Route::get("/like/{id}", function (int $id) {
+  // en lugar de
+  // $post = Post::findOrFail($id);
+  // $post->likes++;
+  // $post->save();
+
+  // haz lo siguiente
+  return Post::findOrFail($id)->increment("likes", 20, [
+    "title" => "Post con muchos likes",
+  ]);
+});
+
+/**
+ * Buscar un Post o retorna un 404, pero si existe darle Dislike
+ */
+Route::get("/dislike/{id}", function (int $id) {
+  // en lugar de
+  // $post = Post::findOrFail($id);
+  // $post->dislikes++;
+  // $post->save();
+
+  // haz lo siguiente
+  return Post::findOrFail($id)->increment("dislikes");    // decrement
+});
+
+/**
+ * Procesos complejos basados en Chuncks | Trozos
+ */
+Route::get("/chunk/{amount}", function (int $amount) {
+  Post::chunk($amount, function (Collection $chunk) {
+  });
+});
+
+/**
+ * Crear un Usuario y su información de pago, 
+ * si existe el usuario lo utiliza
+ * si existe el método de pago lo actualiza
+ */
+Route::get("/create-with-relation", function () {
+  try {
+    DB::beginTransaction();
+
+    $user = User::firstOrCreate(
+      ["name" => "cursosdesarrolloweb"],
+      [
+        "name" => "cursosdesarrolloweb",
+        "age" => 40,
+        "email" => "eloquent@cursosdesarrolloweb.es",
+        "password" => bcrypt("password"),
+      ]
+    );
+
+    // Información de pago
+    /* $user->billing()->updateOrCreate(
+      [
+        "user_id" => $user->id,
+        "credit_card_number" => "123456789"
+      ]
+    ); */
+    Billing::updateOrCreate(
+      ["user_id" => $user->id],
+      [
+        "user_id" => $user->id,
+        "credit_card_number" => "123456789"
+      ]
+    );
+
+    DB::commit();
+
+    return $user
+      ->load("billing:id,user_id,credit_card_number");
   } catch (Exception $exception) {
     DB::rollBack();
     return $exception->getMessage();
