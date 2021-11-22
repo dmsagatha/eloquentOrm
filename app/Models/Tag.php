@@ -13,6 +13,13 @@ class Tag extends Model
     protected $fillable = [
         "tag",
     ];
+    
+    /**
+     * Ocultar pivot de los resultados de la array
+     */
+    protected $hidden = [
+      'pivot',
+    ];
 
     public function posts(): BelongsToMany {
         return $this->belongsToMany(Post::class);
