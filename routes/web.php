@@ -129,12 +129,95 @@ Route::get("/with-relations-using-load/{id}", function (int $id) {
  */
 Route::get("/with-relations-and-columns/{id}", function (int $id) {
   return Post::select(['id', 'title', 'user_id', 'category_id'])
-      ->with([
-        'user:id,name,email',
-        // 'user.billing',
-        'user.billing:id,user_id,credit_card_number',
-        'tags:id,tag',
-        'category:id,name'
-      ])
-      ->find($id);
+    ->with([
+      'user:id,name,email',
+      // 'user.billing',
+      'user.billing:id,user_id,credit_card_number',
+      'tags:id,tag',
+      'category:id,name'
+    ])
+    ->find($id);
+});
+
+/**
+ * Buscar un Usuario y cargar el número de Posts que tiene
+ */
+Route::get("/with-count-posts/{id}", function (int $id) {
+  return User::select(["id", "name", "email"])
+    ->withCount("posts")    // Genera la variable posts_count
+    // ->toSql();              // Consulta
+    ->findOrFail($id);
+});
+
+/**
+ * Actualizar registros
+ */
+Route::get("/update/{id}", function (int $id) {
+  // En lugar de hacer lo siguiente
+  //$post = Post::findOrFail($id);
+  //$post->title = "Post actualizado";
+  //$post->save();
+  //return $post;
+
+  // hacer lo siguiente
+  return Post::findOrFail($id)->update([
+    "title" => "Post actualizado de nuevo...",
+  ]);
+});
+
+/**
+ * Actualizar un Post existente por su Slug o lo crea si no existe
+ */
+Route::get("/update-or-create/{slug}", function (string $slug) {
+  /* en lugar de
+  $post = Post::whereSlug($slug)->first();
+  if ($post) {
+      $post->update([
+          "user_id" => User::all()->random(1)->first()->id,
+          "title" => "Post de pruebas",
+          "content" => "haciendo algunas pruebas",
+      ]);
+  } else {
+      $post = Post::create([
+          "user_id" => User::all()->random(1)->first()->id,
+          "title" => "Post de pruebas",
+          "content" => "haciendo algunas pruebas",
+      ]);
+  }
+  return $post;
+  */
+
+  // haz lo siguiente
+  return Post::updateOrCreate(
+    [
+      "slug" => $slug,
+    ],
+    [
+      "user_id" => User::all()->random(1)->first()->id,
+      "category_id" => Category::all()->random(1)->first()->id,
+      "title" => "Post de pruebas",
+      "content" => "Nuevo contenido del post actualizado...."
+    ],
+  );
+});
+
+/**
+ * Eliminar un Post y sus Tags relaconados si existe
+ */
+Route::get("/delete-with-tags/{id}", function (int $id) 
+{
+  try {
+    DB::beginTransaction();
+
+    $post = Post::findOrFail($id);
+    $post->tags()->detach();        // Eliminado físico | Desvincular
+    $post->delete();
+
+    DB::commit();
+
+    return $post;
+  } catch (Exception $exception) {
+    DB::rollBack();
+    return $exception->getMessage();
+  }
 });
