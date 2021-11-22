@@ -301,3 +301,34 @@ Route::get("/create-with-relation", function () {
     return $exception->getMessage();
   }
 });
+
+/**
+ * Actualizar un Post y sus relaciones
+ */
+Route::get("/update-with-relation/{id}", function (int $id) {
+  $post = Post::findOrFail($id);
+  $post->title = "Post actualizado con relaciones";
+  $post->tags()->attach(Tag::all()->random(1)->first()->id);    // Adjuntar
+  $post->save();    //  $post->push();
+});
+
+/**
+ * Post que tengan mas de 2 Etiquetas relacionadas
+ */
+Route::get("/has-two-tags-or-more", function () {
+  return Post::select(["id", "title"])
+      ->withCount("tags")
+      ->has("tags", ">=", 3)
+      ->get();
+});
+
+/**
+ * Buscar un Post y cargar sus Etiquetas ordenadas pro nombre ascendente
+ * 
+ * Adicionar relación sortedTags al modelo Post
+ */
+Route::get("/with-tags-sorted/{id}", function (int $id) {
+  //return Post::with("tags:id,tag")    // No esta ordenado
+  return Post::with("sortedTags:id,tag")
+      ->find($id);
+});
