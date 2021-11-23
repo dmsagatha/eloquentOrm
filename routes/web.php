@@ -371,3 +371,35 @@ Route::get("/autoload-user-from-post-with-tags/{id}", function (int $id) {
 Route::get("/custom-attributes/{id}", function (int $id) {
   return Post::with("user:id,name")->findOrFail($id);
 });
+
+/**
+ * Buscar Posts por fecha de creación, válidar formato Y-m-d
+ *
+ * Adicionar en el modelo Post
+ * protected $casts = ["created_at" => "datetime:Y-m-d"];
+ * http://127.0.0.1:8000/by-created-at/2021-11-06
+ */
+Route::get("/by-created-at/{date}", function (string $date) {
+    return Post::whereDate("created_at", $date)
+        ->get();
+});
+
+/**
+ * Buscar Posts por día y mes de creación
+ *
+ * http://127.0.0.1:8000/by-created-at-month-day/05/08
+ */
+Route::get("/by-created-at-month-day/{day}/{month}", function (int $day, int $month) {
+    return Post::whereMonth("created_at", $month)
+        ->whereDay("created_at", $day)
+        ->get();
+});
+
+/**
+ * Buscar Posts en un rango de fechas
+ *
+ * http://127.0.0.1:8000/between-by-created-at/2021-08-01/2021-08-05
+ */
+Route::get("/between-by-created-at/{start}/{end}", function (string $start, string $end) {
+  return Post::whereBetween("created_at", [$start, $end])->get();
+});

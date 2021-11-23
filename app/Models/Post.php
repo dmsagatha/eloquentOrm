@@ -28,7 +28,14 @@ class Post extends Model
   ]; */
 
   protected $appends = [
-      "title_with_author"
+    "title_with_author"
+  ];
+
+  /**
+   * Asignarle tipo de dato
+   */
+  protected $casts = [
+    "created_at" => "datetime:Y-m-d"
   ];
 
   public function user(): BelongsTo
@@ -60,8 +67,9 @@ class Post extends Model
     $this->attributes["slug"] = Str::slug($title);
   }
 
-  public function getTitleWithAuthorAttribute(): string {
-      return sprintf("%s - %s", $this->title, $this->user->name);
+  public function getTitleWithAuthorAttribute(): string
+  {
+    return sprintf("%s - %s", $this->title, $this->user->name);
   }
 
   /**
