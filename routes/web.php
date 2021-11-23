@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -129,12 +130,244 @@ Route::get("/with-relations-using-load/{id}", function (int $id) {
  */
 Route::get("/with-relations-and-columns/{id}", function (int $id) {
   return Post::select(['id', 'title', 'user_id', 'category_id'])
-      ->with([
-        'user:id,name,email',
-        // 'user.billing',
-        'user.billing:id,user_id,credit_card_number',
-        'tags:id,tag',
-        'category:id,name'
-      ])
+    ->with([
+      'user:id,name,email',
+      // 'user.billing',
+      'user.billing:id,user_id,credit_card_number',
+      'tags:id,tag',
+      'category:id,name'
+    ])
+    ->find($id);
+});
+
+/**
+ * Buscar un Usuario y cargar el número de Posts que tiene
+ */
+Route::get("/with-count-posts/{id}", function (int $id) {
+  return User::select(["id", "name", "email"])
+    ->withCount("posts")    // Genera la variable posts_count
+    // ->toSql();              // Consulta
+    ->findOrFail($id);
+});
+
+/**
+ * Actualizar registros
+ */
+Route::get("/update/{id}", function (int $id) {
+  // En lugar de hacer lo siguiente
+  //$post = Post::findOrFail($id);
+  //$post->title = "Post actualizado";
+  //$post->save();
+  //return $post;
+
+  // hacer lo siguiente
+  return Post::findOrFail($id)->update([
+    "title" => "Post actualizado de nuevo...",
+  ]);
+});
+
+/**
+ * Actualizar un Post existente por su Slug o lo crea si no existe
+ */
+Route::get("/update-or-create/{slug}", function (string $slug) {
+  /* en lugar de
+  $post = Post::whereSlug($slug)->first();
+  if ($post) {
+      $post->update([
+          "user_id" => User::all()->random(1)->first()->id,
+          "title" => "Post de pruebas",
+          "content" => "haciendo algunas pruebas",
+      ]);
+  } else {
+      $post = Post::create([
+          "user_id" => User::all()->random(1)->first()->id,
+          "title" => "Post de pruebas",
+          "content" => "haciendo algunas pruebas",
+      ]);
+  }
+  return $post;
+  */
+
+  // haz lo siguiente
+  return Post::updateOrCreate(
+    [
+      "slug" => $slug,
+    ],
+    [
+      "user_id" => User::all()->random(1)->first()->id,
+      "category_id" => Category::all()->random(1)->first()->id,
+      "title" => "Post de pruebas",
+      "content" => "Nuevo contenido del post actualizado...."
+    ],
+  );
+});
+
+/**
+ * Eliminar un Post y sus Tags relaconados si existe
+ */
+Route::get("/delete-with-tags/{id}", function (int $id) {
+  try {
+    DB::beginTransaction();
+
+    $post = Post::findOrFail($id);
+    $post->tags()->detach();        // Eliminado físico | Desvincular
+    $post->delete();
+
+    DB::commit();
+
+    return $post;
+  } catch (Exception $exception) {
+    DB::rollBack();
+    return $exception->getMessage();
+  }
+});
+
+/**
+ * Buscar un Post o retorna un 404, pero si existe darle Like
+ */
+Route::get("/like/{id}", function (int $id) {
+  // en lugar de
+  // $post = Post::findOrFail($id);
+  // $post->likes++;
+  // $post->save();
+
+  // haz lo siguiente
+  return Post::findOrFail($id)->increment("likes", 20, [
+    "title" => "Post con muchos likes",
+  ]);
+});
+
+/**
+ * Buscar un Post o retorna un 404, pero si existe darle Dislike
+ */
+Route::get("/dislike/{id}", function (int $id) {
+  // en lugar de
+  // $post = Post::findOrFail($id);
+  // $post->dislikes++;
+  // $post->save();
+
+  // haz lo siguiente
+  return Post::findOrFail($id)->increment("dislikes");    // decrement
+});
+
+/**
+ * Procesos complejos basados en Chuncks | Trozos
+ */
+Route::get("/chunk/{amount}", function (int $amount) {
+  Post::chunk($amount, function (Collection $chunk) {
+  });
+});
+
+/**
+ * Crear un Usuario y su información de pago, 
+ * si existe el usuario lo utiliza
+ * si existe el método de pago lo actualiza
+ */
+Route::get("/create-with-relation", function () {
+  try {
+    DB::beginTransaction();
+
+    $user = User::firstOrCreate(
+      ["name" => "cursosdesarrolloweb"],
+      [
+        "name" => "cursosdesarrolloweb",
+        "age" => 40,
+        "email" => "eloquent@cursosdesarrolloweb.es",
+        "password" => bcrypt("password"),
+      ]
+    );
+
+    // Información de pago
+    /* $user->billing()->updateOrCreate(
+      [
+        "user_id" => $user->id,
+        "credit_card_number" => "123456789"
+      ]
+    ); */
+    Billing::updateOrCreate(
+      ["user_id" => $user->id],
+      [
+        "user_id" => $user->id,
+        "credit_card_number" => "123456789"
+      ]
+    );
+
+    DB::commit();
+
+    return $user
+      ->load("billing:id,user_id,credit_card_number");
+  } catch (Exception $exception) {
+    DB::rollBack();
+    return $exception->getMessage();
+  }
+});
+
+/**
+ * Actualizar un Post y sus relaciones
+ */
+Route::get("/update-with-relation/{id}", function (int $id) {
+  $post = Post::findOrFail($id);
+  $post->title = "Post actualizado con relaciones";
+  $post->tags()->attach(Tag::all()->random(1)->first()->id);    // Adjuntar
+  $post->save();    //  $post->push();
+});
+
+/**
+ * Post que tengan mas de 2 Etiquetas relacionadas
+ */
+Route::get("/has-two-tags-or-more", function () {
+  return Post::select(["id", "title"])
+      ->withCount("tags")
+      ->has("tags", ">=", 3)
+      ->get();
+});
+
+/**
+ * Buscar un Post y cargar sus Etiquetas ordenadas pro nombre ascendente
+ * 
+ * Adicionar relación sortedTags al modelo Post
+ */
+Route::get("/with-tags-sorted/{id}", function (int $id) {
+  //return Post::with("tags:id,tag")    // No esta ordenado
+  return Post::with("sortedTags:id,tag")
       ->find($id);
+});
+
+/**
+ * Buscar todos los Posts que tengan Etiquetas whereHas()
+ */
+Route::get("/with-where-has-tags", function () {
+  return Post::select(["id", "title"])
+      ->with("tags:id,tag")
+      ->whereHas("tags")
+      //->whereDoesHave("tags")       // No tienen Tags
+      ->get();
+});
+
+/**
+ * Scope para buscar todos los Posts que tengan Etiquetas whereHas()
+ */
+Route::get("/scope-with-where-has-tags", function () {
+  return Post::whereHasTagsWithTags()->get();
+});
+
+/**
+ * Buscar un Post y cargar su Autor de forma automática y sus Etiquetas
+ * con tola la información
+ * 
+ * Adicionar protected $with = ['user:id,name,email',] en el modelo Post
+ */
+Route::get("/autoload-user-from-post-with-tags/{id}", function (int $id) {
+    return Post::with("tags:id,tag")->findOrFail($id);
+});
+
+/**
+ * Post con atributos personalizados
+ * 
+ * Adicionar en el modelo Post
+ * getTitleWithAuthorAttribute
+ * protected $appends = ["title_with_author"];
+ */
+Route::get("/custom-attributes/{id}", function (int $id) {
+  return Post::with("user:id,name")->findOrFail($id);
 });
