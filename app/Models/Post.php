@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
@@ -20,6 +21,14 @@ class Post extends Model
     "likes",
     "dislikes",
     "content",
+  ];
+
+  /* protected $with = [
+    'user:id,name,email',
+  ]; */
+
+  protected $appends = [
+      "title_with_author"
   ];
 
   public function user(): BelongsTo
@@ -49,5 +58,21 @@ class Post extends Model
   {
     $this->attributes["title"] = $title;
     $this->attributes["slug"] = Str::slug($title);
+  }
+
+  public function getTitleWithAuthorAttribute(): string {
+      return sprintf("%s - %s", $this->title, $this->user->name);
+  }
+
+  /**
+   * @param Builder $builder
+   * @return Builder
+   */
+  public function scopeWhereHasTagsWithTags(Builder $builder): Builder
+  {
+    return $builder
+      ->select(["id", "title"])
+      ->with("tags:id,tag")
+      ->whereHas("tags");
   }
 }

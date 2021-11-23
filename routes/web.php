@@ -332,3 +332,42 @@ Route::get("/with-tags-sorted/{id}", function (int $id) {
   return Post::with("sortedTags:id,tag")
       ->find($id);
 });
+
+/**
+ * Buscar todos los Posts que tengan Etiquetas whereHas()
+ */
+Route::get("/with-where-has-tags", function () {
+  return Post::select(["id", "title"])
+      ->with("tags:id,tag")
+      ->whereHas("tags")
+      //->whereDoesHave("tags")       // No tienen Tags
+      ->get();
+});
+
+/**
+ * Scope para buscar todos los Posts que tengan Etiquetas whereHas()
+ */
+Route::get("/scope-with-where-has-tags", function () {
+  return Post::whereHasTagsWithTags()->get();
+});
+
+/**
+ * Buscar un Post y cargar su Autor de forma automática y sus Etiquetas
+ * con tola la información
+ * 
+ * Adicionar protected $with = ['user:id,name,email',] en el modelo Post
+ */
+Route::get("/autoload-user-from-post-with-tags/{id}", function (int $id) {
+    return Post::with("tags:id,tag")->findOrFail($id);
+});
+
+/**
+ * Post con atributos personalizados
+ * 
+ * Adicionar en el modelo Post
+ * getTitleWithAuthorAttribute
+ * protected $appends = ["title_with_author"];
+ */
+Route::get("/custom-attributes/{id}", function (int $id) {
+  return Post::with("user:id,name")->findOrFail($id);
+});
