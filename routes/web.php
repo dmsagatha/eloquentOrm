@@ -7,6 +7,7 @@ use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -317,9 +318,9 @@ Route::get("/update-with-relation/{id}", function (int $id) {
  */
 Route::get("/has-two-tags-or-more", function () {
   return Post::select(["id", "title"])
-      ->withCount("tags")
-      ->has("tags", ">=", 3)
-      ->get();
+    ->withCount("tags")
+    ->has("tags", ">=", 3)
+    ->get();
 });
 
 /**
@@ -330,7 +331,7 @@ Route::get("/has-two-tags-or-more", function () {
 Route::get("/with-tags-sorted/{id}", function (int $id) {
   //return Post::with("tags:id,tag")    // No esta ordenado
   return Post::with("sortedTags:id,tag")
-      ->find($id);
+    ->find($id);
 });
 
 /**
@@ -338,10 +339,10 @@ Route::get("/with-tags-sorted/{id}", function (int $id) {
  */
 Route::get("/with-where-has-tags", function () {
   return Post::select(["id", "title"])
-      ->with("tags:id,tag")
-      ->whereHas("tags")
-      //->whereDoesHave("tags")       // No tienen Tags
-      ->get();
+    ->with("tags:id,tag")
+    ->whereHas("tags")
+    //->whereDoesHave("tags")       // No tienen Tags
+    ->get();
 });
 
 /**
@@ -358,7 +359,7 @@ Route::get("/scope-with-where-has-tags", function () {
  * Adicionar protected $with = ['user:id,name,email',] en el modelo Post
  */
 Route::get("/autoload-user-from-post-with-tags/{id}", function (int $id) {
-    return Post::with("tags:id,tag")->findOrFail($id);
+  return Post::with("tags:id,tag")->findOrFail($id);
 });
 
 /**
@@ -380,8 +381,8 @@ Route::get("/custom-attributes/{id}", function (int $id) {
  * http://127.0.0.1:8000/by-created-at/2021-11-06
  */
 Route::get("/by-created-at/{date}", function (string $date) {
-    return Post::whereDate("created_at", $date)
-        ->get();
+  return Post::whereDate("created_at", $date)
+    ->get();
 });
 
 /**
@@ -390,9 +391,9 @@ Route::get("/by-created-at/{date}", function (string $date) {
  * http://127.0.0.1:8000/by-created-at-month-day/05/08
  */
 Route::get("/by-created-at-month-day/{day}/{month}", function (int $day, int $month) {
-    return Post::whereMonth("created_at", $month)
-        ->whereDay("created_at", $day)
-        ->get();
+  return Post::whereMonth("created_at", $month)
+    ->whereDay("created_at", $day)
+    ->get();
 });
 
 /**
@@ -402,4 +403,125 @@ Route::get("/by-created-at-month-day/{day}/{month}", function (int $day, int $mo
  */
 Route::get("/between-by-created-at/{start}/{end}", function (string $start, string $end) {
   return Post::whereBetween("created_at", [$start, $end])->get();
+});
+
+/**
+ * Obtener todo los Posts que el día del mes sea superior a 5 o uno por Slug
+ * Si existe la QueryString Slug
+ *
+ * http://127.0.0.1:8000/when-slug?slug=<slug>
+ */
+Route::get("/when-slug", function () {
+  return Post::whereMonth("created_at", now()->month)
+    ->whereDay("created_at", ">", 5)
+    // Condicionales
+    ->when(request()->query("slug"), function (Builder $builder) {
+      $builder->whereSlug(request()->query("slug"));
+    })
+    ->get();
+});
+
+/**
+ * Subqueries para consultas avanzadas
+ *
+ * select * from `users` where (`banned` = true and `age` >= 50) or (`banned` = false and `age` <= 30)
+ */
+Route::get("/subquery", function () {
+  return User::where(function (Builder $builder) {
+    $builder->where("banned", true)
+      ->where("age", ">=", 50);
+  })
+    ->orWhere(function (Builder $builder) {
+      $builder->where("banned", false)
+        ->where("age", "<=", 30);
+    })
+    ->get();
+  // ->dd();
+});
+
+/**
+ * Scope global en Postos para obtener sólo Posts de este mes
+ */
+Route::get("/global-scope-posts-current-month", function () {
+  return Post::count();
+});
+
+/**
+ * Deshabilitar Scope Global en Posts para obtener todos los Posts
+ */
+Route::get("/without-global-scope-posts-current-month", function () {
+  return Post::withoutGlobalScope("currentMonth")->count();
+});
+
+/**
+ * Posts agrupados por Categoría con suma de Likes y Dislikes
+ * 
+ * Error ==> Syntax error or access violation: 1055 'eloquentOrm.posts.id' isn't in GROUP BY
+ * config/database.php ==> 'connections' => ['mysql' => ['strict' => false,],],
+ */
+Route::get("/query-raw", function () {
+  return Post::withoutGlobalScope("currentMonth")
+    ->with("category")
+    ->select([
+      "id",
+      "category_id",
+      "likes",
+      "dislikes",
+      DB::raw("SUM(likes) as total_likes"),
+      DB::raw("SUM(dislikes) as total_dislikes"),
+    ])
+    ->groupBy("category_id")
+    ->get();
+});
+
+/**
+ * Posts agrupadso por Categoría con suma de Likes y Dislikes que
+ * sumen mas de 110 Likes
+ */
+Route::get("/query-raw-having-raw", function () {
+  return Post::withoutGlobalScope("currentMonth")
+    ->with("category")
+    ->select([
+      "id",
+      "category_id",
+      "likes",
+      "dislikes",
+      DB::raw("SUM(likes) as total_likes"),
+      DB::raw("SUM(dislikes) as total_dislikes"),
+    ])
+    ->groupBy("category_id")
+    ->havingRaw("SUM(likes) > ?", [110])
+    ->get();
+});
+
+/**
+ * Usuarios ordenados por su último Post
+ */
+Route::get("/order-by-subqueries", function () {
+  return User::select(["id", "name"])
+    ->has("posts")
+    ->orderByDesc(
+      Post::withoutGlobalScope("currentMonth")
+        ->select("created_at")
+        ->whereColumn("user_id", "users.id")
+        ->orderBy("created_at", "desc")
+        ->limit(1)
+    )
+    ->get();
+});
+
+/**
+ * Usuarios que tenen Posts con su último Pos publicado
+ */
+Route::get("/select-subqueries", function () {
+  return User::select(["id", "name"])
+    ->has("posts")
+    ->addSelect([
+      "last_post" => Post::withoutGlobalScope("currentMonth")
+        ->select("title")
+        ->whereColumn("user_id", "users.id")
+        ->orderBy("created_at", "desc")
+        ->limit(1)
+    ])
+    ->get();
 });
