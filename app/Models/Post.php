@@ -35,13 +35,20 @@ class Post extends Model
    * Asignarle tipo de dato
    */
   protected $casts = [
-    "created_at" => "datetime:Y-m-d"
+    "created_at" => "datetime:Y-m-d",
+    'banned' => 'boolean',
   ];
+
+  protected static function booted() {
+      static::addGlobalScope("currentMonth", function (Builder $builder) {
+          $builder->whereMonth("created_at", now()->month);
+      });
+  }
 
   public function user(): BelongsTo
   {
     return $this->belongsTo(User::class)->withDefault([
-      "id" => -1,
+      "id"   => -1,
       "name" => "No existe",
     ]);
   }
